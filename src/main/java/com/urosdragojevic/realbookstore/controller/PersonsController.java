@@ -16,7 +16,8 @@ import jakarta.servlet.http.HttpSession;
 import java.sql.SQLException;
 import java.util.List;
 import java.nio.file.AccessDeniedException;
-
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 @Controller
 public class PersonsController {
 
@@ -32,6 +33,7 @@ public class PersonsController {
     }
 
     @GetMapping("/persons/{id}")
+    @PreAuthorize("hasAuthority('VIEW_PERSON')")
     public String person(@PathVariable int id, Model model, HttpSession session) {
         String csrf = session.getAttribute("CSFR_TOKEN").toString();
         model.addAttribute("CSFR_TOKEN", session.getAttribute("CSFR_TOKEN"));
@@ -40,6 +42,7 @@ public class PersonsController {
     }
 
     @GetMapping("/myprofile")
+    @PreAuthorize("hasAuthority('VIEW_MY_PROFILE')")
     public String self(Model model, Authentication authentication) {
         User user = (User) authentication.getPrincipal();
         model.addAttribute("person", personRepository.get("" + user.getId()));
@@ -47,6 +50,7 @@ public class PersonsController {
     }
 
     @DeleteMapping("/persons/{id}")
+    @PreAuthorize("hasAuthority('UPDATE_PERSON')")
     public ResponseEntity<Void> person(@PathVariable int id) {
         personRepository.delete(id);
         userRepository.delete(id);
@@ -55,9 +59,15 @@ public class PersonsController {
     }
 
     @PostMapping("/update-person")
+    @PreAuthorize("hasAuthority('UPDATE_PERSON')")
     public String updatePerson(Person person, HttpSession session, @RequestParam("csrfToken") String csrfToken) throws AccessDeniedException {
         String token = session.getAttribute("CSRF_TOKEN").toString();
         if(!token.equals(csrfToken))
+            throw new AccessDeniedException("Forbidden");
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        var current_user = (User) auth.getPrincipal();
+        if(Integer.valueOf(person.getId()) != current_user.getId())
             throw new AccessDeniedException("Forbidden");
 
         personRepository.update(person);
@@ -65,12 +75,14 @@ public class PersonsController {
     }
 
     @GetMapping("/persons")
+    @PreAuthorize("hasAuthority('VIEW_PERSONS_LIST')")
     public String persons(Model model) {
         model.addAttribute("persons", personRepository.getAll());
         return "persons";
     }
 
     @GetMapping(value = "/persons/search", produces = "application/json")
+    @PreAuthorize("hasAuthority('VIEW_PERSONS_LIST')")
     @ResponseBody
     public List<Person> searchPersons(@RequestParam String searchTerm) throws SQLException {
         return personRepository.search(searchTerm);
