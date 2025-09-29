@@ -12,9 +12,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-
+import jakarta.servlet.http.HttpSession;
 import java.sql.SQLException;
 import java.util.List;
+import java.nio.file.AccessDeniedException;
 
 @Controller
 public class PersonsController {
@@ -31,7 +32,9 @@ public class PersonsController {
     }
 
     @GetMapping("/persons/{id}")
-    public String person(@PathVariable int id, Model model) {
+    public String person(@PathVariable int id, Model model, HttpSession session) {
+        String csrf = session.getAttribute("CSFR_TOKEN").toString();
+        model.addAttribute("CSFR_TOKEN", session.getAttribute("CSFR_TOKEN"));
         model.addAttribute("person", personRepository.get("" + id));
         return "person";
     }
@@ -52,7 +55,11 @@ public class PersonsController {
     }
 
     @PostMapping("/update-person")
-    public String updatePerson(Person person) {
+    public String updatePerson(Person person, HttpSession session, @RequestParam("csrfToken") String csrfToken) throws AccessDeniedException {
+        String token = session.getAttribute("CSRF_TOKEN").toString();
+        if(!token.equals(csrfToken))
+            throw new AccessDeniedException("Forbidden");
+
         personRepository.update(person);
         return "redirect:/persons/" + person.getId();
     }
